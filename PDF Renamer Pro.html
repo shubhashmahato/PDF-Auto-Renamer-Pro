@@ -603,15 +603,55 @@
         `;
     }
 
-    async function downloadAll() {
+async function downloadAll() {
+    const successFiles = files.filter(f => f.newName);
+    if (successFiles.length === 0) return alert('No files to download!');
+    
+    // Try ZIP first (original method)
+    try {
         const zip = new JSZip();
-        files.filter(f => f.newName).forEach(f => zip.file(f.newName, f));
+        successFiles.forEach(f => zip.file(f.newName, f));
         const blob = await zip.generateAsync({type:'blob'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `Renamed_PDFs_${new Date().toISOString().slice(0,10)}.zip`;
+        document.body.appendChild(a); // Fix for GitHub Pages
         a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    } catch (e) {
+        // Fallback: Create individual download links (works everywhere)
+        console.log('ZIP failed, using multi-download fallback');
+        const downloadsDiv = document.createElement('div');
+        downloadsDiv.style.cssText = 'position:fixed;top:10px;right:10px;background:white;padding:20px;border:1px solid #ccc;border-radius:10px;z-index:9999;max-width:300px;';
+        downloadsDiv.innerHTML = '<h4>Downloading All Files...</h4><p>Click each link below (or right-click → Save As):</p><ul style="list-style:none;padding:0;">';
+        
+        successFiles.forEach((f, i) => {
+            const blob = new Blob([f], {type: 'application/pdf'});
+            const url = URL.createObjectURL(blob);
+            const li = document.createElement('li');
+            li.innerHTML = `<a href="${url}" download="${f.newName}" style="display:block;margin:5px 0;color:#6366f1;text-decoration:none;">📄 ${f.newName}</a>`;
+            downloadsDiv.querySelector('ul').appendChild(li);
+            
+            // Auto-trigger first few downloads (browsers limit simultaneous)
+            if (i < 5) setTimeout(() => {
+                const link = li.querySelector('a');
+                const tempA = document.createElement('a');
+                tempA.href = url;
+                tempA.download = f.newName;
+                document.body.appendChild(tempA);
+                tempA.click();
+                document.body.removeChild(tempA);
+            }, i * 500);
+        });
+        
+        downloadsDiv.innerHTML += '<p><small><button onclick="this.parentElement.parentElement.remove()" style="background:#ef4444;color:white;border:none;padding:5px 10px;border-radius:5px;cursor:pointer;">Close</button></small></p>';
+        document.body.appendChild(downloadsDiv);
+        
+        // Auto-close after 10 seconds
+        setTimeout(() => downloadsDiv.remove(), 10000);
     }
+}
 
     window.downloadSingle = function(index) {
         const file = files[index];
@@ -638,3 +678,4 @@
 </script>
 </body>
 </html>
+
